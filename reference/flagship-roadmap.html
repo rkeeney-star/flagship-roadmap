@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flagship Design Roadmap</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f4f0;
+    color: #111;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  .page-header { display:flex; align-items:baseline; gap:12px; margin-bottom:20px; }
+  .page-header h1 { font-size:20px; font-weight:500; }
+  .page-header span { font-size:13px; color:#888; }
+
+  .toolbar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .team-filter { display:flex; gap:4px; flex-wrap:wrap; }
+
+  .pill {
+    font-size:12px; font-weight:500; padding:4px 12px; border-radius:99px;
+    cursor:pointer; border:1.5px solid transparent; transition:opacity 0.15s; user-select:none;
+  }
+  .pill.active { opacity:1; }
+  .pill.inactive { opacity:0.3; }
+  .pill-launchx  { background:#E6F1FB; color:#0C447C; border-color:#85B7EB; }
+  .pill-webx     { background:#EEEDFE; color:#3C3489; border-color:#AFA9EC; }
+  .pill-mmc      { background:#EAF3DE; color:#27500A; border-color:#97C459; }
+  .pill-platform { background:#FAEEDA; color:#633806; border-color:#EF9F27; }
+
+  .toolbar-right { margin-left:auto; display:flex; gap:8px; }
+
+  .btn {
+    font-size:13px; padding:6px 14px; border-radius:7px;
+    border:0.5px solid #ccc; background:#fff; color:#333; cursor:pointer; white-space:nowrap;
+  }
+  .btn:hover { background:#f0efeb; }
+  .btn-primary { background:#3266ad; color:#fff; border-color:#3266ad; }
+  .btn-primary:hover { background:#185FA5; }
+
+  /* ─── OUTER WRAPPER ───────────────────────────────────────────
+     flex row: frozen-panel | scrolling-panel
+     Both panels share the same background / border so it looks like one table.
+  ──────────────────────────────────────────────────────────────── */
+  .gantt-outer {
+    display: flex;
+    background: #fff;
+    border-radius: 12px;
+    border: 0.5px solid #ddd;
+    overflow: hidden;          /* clips the rounded corners */
+  }
+
+  /* ─── LEFT FROZEN PANEL ──────────────────────────────────────── */
+  .frozen-panel {
+    flex-shrink: 0;
+    width: 280px;              /* name col 220 + size col 60 */
+    z-index: 10;
+    /* shadow on the right edge so it visually lifts above the scroll area */
+    box-shadow: 3px 0 8px rgba(0,0,0,0.07);
+    /* clip so the shadow doesn't bleed outside */
+    overflow: hidden;
+  }
+
+  /* ─── RIGHT SCROLLING PANEL ─────────────────────────────────── */
+  .scroll-panel {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: visible;
+    min-width: 0;
+  }
+
+  /* ─── SHARED ROW HEIGHTS ─────────────────────────────────────── */
+  /* We need frozen rows and scrolling rows to be the exact same height.
+     We achieve this by setting explicit heights on every row type. */
+  .row-dc   { height: 24px; }
+  .row-wk   { height: 23px; }
+  .row-proj { height: 52px; } /* tall enough for name + tag */
+
+  /* ─── FROZEN PANEL CELLS ─────────────────────────────────────── */
+  .frozen-panel .row-dc,
+  .frozen-panel .row-wk {
+    background: #fafaf8;
+    border-bottom: 0.5px solid #e8e8e4;
+    display: flex; align-items: center;
+    padding: 0 12px;
+    font-size: 10px; font-weight: 500; color: #999;
+    text-transform: uppercase; letter-spacing: .04em;
+    position: sticky; top: 0; z-index: 12;
+  }
+  .frozen-panel .row-wk {
+    position: sticky; top: 24px; z-index: 11;
+    font-size: 11px; color: #888; text-transform: none; letter-spacing: 0;
+  }
+
+  .frozen-row {
+    display: flex;
+    border-bottom: 0.5px solid #f0efe9;
+    height: 52px;
+  }
+  .frozen-row:last-child { border-bottom: none; }
+  .frozen-row:hover .f-name,
+  .frozen-row:hover .f-size { background: #fafaf8; }
+
+  .f-name {
+    width: 220px; flex-shrink: 0;
+    padding: 9px 12px;
+    background: #fff;
+    display: flex; flex-direction: column; justify-content: center;
+    overflow: hidden;
+  }
+  .f-size {
+    width: 60px; flex-shrink: 0;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    border-left: 0.5px solid #f0efe9;
+  }
+
+  .project-name {
+    font-weight: 500; color: #111; font-size: 13px;
+    cursor: pointer; display: block;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .project-name:hover { text-decoration: underline; }
+
+  .meta-row {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 3px; flex-wrap: nowrap; overflow: hidden;
+  }
+
+  .team-tag {
+    display: inline-block; font-size: 10px; font-weight: 500;
+    padding: 1px 7px; border-radius: 99px; flex-shrink: 0;
+  }
+  .dc-tag {
+    font-size: 10px; color: #bbb;
+    background: #f5f4f0; padding: 1px 6px;
+    border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+  }
+
+  .size-badge {
+    display: inline-block; font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 5px; cursor: pointer; user-select: none;
+  }
+  .size-badge:hover { filter: brightness(.93); }
+  .size-XS { background:#F1EFE8; color:#444441; }
+  .size-S  { background:#EAF3DE; color:#27500A; }
+  .size-M  { background:#FAEEDA; color:#633806; }
+  .size-L  { background:#FAECE7; color:#712B13; }
+  .size-XL { background:#EEEDFE; color:#3C3489; }
+
+  /* ─── SCROLL PANEL HEADER ─────────────────────────────────────── */
+  .tl-dc-row {
+    display: flex; height: 24px;
+    background: #fafaf8;
+    position: sticky; top: 0; z-index: 8;
+  }
+  .tl-wk-row {
+    display: flex; height: 23px;
+    background: #fafaf8;
+    border-bottom: 0.5px solid #e8e8e4;
+    position: sticky; top: 24px; z-index: 7;
+  }
+
+  .dc-band {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; letter-spacing: .05em;
+    border-left: 2px solid transparent;
+  }
+  .dc-band.dc3 { background:#edf8f3; color:#27500A; border-color:#97C459; }
+  .dc-band.dc4 { background:#eaf3fb; color:#0C447C; border-color:#85B7EB; }
+  .dc-band.dc5 { background:#f1effe; color:#3C3489; border-color:#AFA9EC; }
+  .dc-band.dc6 { background:#fdf4e3; color:#633806; border-color:#EF9F27; }
+  .dc-band.dc7 { background:#fdf0f5; color:#72243E; border-color:#D4537E; }
+
+  .wk-label {
+    flex-shrink: 0; font-size: 10px; color: #aaa;
+    display: flex; align-items: center; padding-left: 5px;
+    border-left: 0.5px solid #e8e8e3;
+  }
+  .wk-label.dc-start { border-left: 2px solid #bbb; }
+
+  /* ─── BAR ROWS ─────────────────────────────────────────────────── */
+  .bar-row {
+    height: 52px; position: relative;
+    border-bottom: 0.5px solid #f0efe9;
+    background: #fff;
+  }
+  .bar-row:last-child { border-bottom: none; }
+
+  .bar-canvas {
+    position: relative; height: 100%;
+  }
+
+  .dc-sh {
+    position: absolute; top: 0; bottom: 0;
+    pointer-events: none; z-index: 0;
+  }
+  .dc-ln {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    pointer-events: none; z-index: 2; opacity: .45;
+  }
+  .today-ln {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: #E24B4A; opacity: .75;
+    pointer-events: none; z-index: 3; left: 0;
+  }
+
+  .bar {
+    position: absolute; top: 12px; height: 28px;
+    border-radius: 5px; cursor: grab; user-select: none;
+    display: flex; align-items: center;
+    padding: 0 20px 0 8px;
+    font-size: 11px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 6px; z-index: 4;
+  }
+  .bar:active { cursor: grabbing; }
+  .bar:hover { filter: brightness(.91); }
+
+  .bar-launchx  { background:#85B7EB; color:#042C53; }
+  .bar-webx     { background:#AFA9EC; color:#26215C; }
+  .bar-mmc      { background:#97C459; color:#173404; }
+  .bar-platform { background:#EF9F27; color:#412402; }
+  .bar-unscheduled { opacity:0.5; border:1.5px dashed currentColor; background:transparent !important; }
+
+  .rh {
+    position: absolute; right: 0; top: 0;
+    width: 10px; height: 100%;
+    cursor: ew-resize; z-index: 5;
+    border-radius: 0 5px 5px 0;
+  }
+  .rh:hover { background: rgba(0,0,0,0.15); }
+
+  .empty-state {
+    padding: 36px; text-align: center;
+    color: #bbb; font-size: 13px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap; margin-top: 10px;
+    font-size: 12px; color: #888;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot  { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.3);
+    z-index: 1000; display: flex; align-items: center; justify-content: center;
+  }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 24px 28px;
+    width: 360px; max-width: 95vw; border: 0.5px solid #ddd;
+  }
+  .modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 18px; }
+  .form-row { margin-bottom: 13px; }
+  label { display: block; font-size: 12px; color: #777; margin-bottom: 4px; }
+  input[type=text], input[type=number], select {
+    width: 100%; font-size: 13px; padding: 7px 10px;
+    border-radius: 7px; border: 0.5px solid #ccc;
+    background: #fff; color: #111; font-family: inherit;
+  }
+  input:focus, select:focus { outline: 2px solid #85B7EB; outline-offset: 1px; border-color: transparent; }
+  .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+  .del-link { font-size: 12px; color: #bbb; cursor: pointer; text-decoration: underline; margin-right: auto; }
+  .del-link:hover { color: #E24B4A; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Flagship Design Roadmap</h1>
+  <span id="dateRange"></span>
+</div>
+
+<div class="toolbar">
+  <div class="team-filter" id="filterPills"></div>
+  <div class="toolbar-right">
+    <button class="btn" onclick="exportCSV()">Export CSV</button>
+    <button class="btn btn-primary" onclick="openModal(null)">+ Add project</button>
+  </div>
+</div>
+
+<div class="gantt-outer">
+
+  <!-- LEFT: frozen name + size columns -->
+  <div class="frozen-panel" id="frozenPanel">
+    <div class="row-dc">Project</div>
+    <div class="row-wk" style="font-size:11px;color:#aaa;font-weight:400;text-transform:none;letter-spacing:0;">Size</div>
+    <!-- project frozen rows injected by JS -->
+  </div>
+
+  <!-- RIGHT: scrolling timeline -->
+  <div class="scroll-panel" id="scrollPanel">
+    <div class="tl-dc-row" id="dcHdr"></div>
+    <div class="tl-wk-row" id="wkHdr"></div>
+    <!-- bar rows injected by JS -->
+  </div>
+
+</div>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-dot" style="background:#85B7EB"></span>LaunchX</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#AFA9EC"></span>WebX</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#97C459"></span>MMC</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#EF9F27"></span>Platform</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#E24B4A;opacity:.75"></span>Today</span>
+  <span style="margin-left:auto;display:flex;gap:8px;font-size:11px;color:#aaa;">
+    <span>XS=2d</span><span>S=5d</span><span>M=10d</span><span>L=20d</span><span>XL=30d</span>
+  </span>
+</div>
+
+<div id="modalContainer"></div>
+
+<script>
+const TEAMS     = ['LaunchX','WebX','MMC','Platform'];
+const SIZES     = ['XS','S','M','L','XL'];
+const SIZE_DAYS = { XS:2, S:5, M:10, L:20, XL:30 };
+const TEAM_KEY  = { LaunchX:'launchx', WebX:'webx', MMC:'mmc', Platform:'platform' };
+
+const DAY_W      = 34;
+// DC cycles: 42 days each. DC4 starts May 11 = day 33 from Apr 8
+const DC4_START = 33;
+const DC5_START = DC4_START + 42;  // Jun 22
+const DC6_START = DC5_START + 42;  // Aug 3
+const DC7_START = DC6_START + 42;  // Sep 14
+
+// TOTAL_DAYS is computed dynamically after projects are defined.
+// It always extends to the end of the DC that contains the last project,
+// plus one full extra DC so there's breathing room.
+// Declared here as let so render() can reference it after recompute().
+let TOTAL_DAYS = 126;
+let CANVAS_W   = TOTAL_DAYS * DAY_W;
+
+const UNSCHEDULED_START = 210; // unscheduled zone begins here
+const UNSCHEDULED_WIDTH = 42;  // show 42 days of unscheduled space
+
+function recomputeCanvas() {
+  // Find furthest scheduled project (ignore unscheduled ones at UNSCHEDULED_START)
+  const scheduledMax = projects
+    .filter(p => p.start < UNSCHEDULED_START)
+    .reduce((m, p) => Math.max(m, p.start + p.dur), 0);
+
+  const DC_STARTS = [0, DC4_START, DC5_START, DC6_START, DC7_START];
+  let dcEnd = DC7_START + 42;
+  for (let i = 0; i < DC_STARTS.length; i++) {
+    if (scheduledMax <= DC_STARTS[i] + 42) {
+      dcEnd = (DC_STARTS[i + 1] || DC_STARTS[i] + 42) + 42;
+      break;
+    }
+  }
+
+  const hasUnscheduled = projects.some(p => p.start >= UNSCHEDULED_START);
+  // Timeline = scheduled DCs + gap marker (4 days) + unscheduled zone
+  const scheduledEnd = Math.max(dcEnd, scheduledMax + 14);
+  TOTAL_DAYS = hasUnscheduled
+    ? UNSCHEDULED_START + UNSCHEDULED_WIDTH
+    : scheduledEnd;
+  CANVAS_W = TOTAL_DAYS * DAY_W;
+}
+
+const DC_CFG = {
+  DC3: { bg:'rgba(159,225,203,0.16)', line:'#97C459', band:'#edf8f3', bandTxt:'#27500A' },
+  DC4: { bg:'rgba(133,183,235,0.16)', line:'#85B7EB', band:'#eaf3fb', bandTxt:'#0C447C' },
+  DC5: { bg:'rgba(175,169,236,0.16)', line:'#AFA9EC', band:'#f1effe', bandTxt:'#3C3489' },
+  DC6: { bg:'rgba(239,159,39,0.12)',  line:'#EF9F27', band:'#fdf4e3', bandTxt:'#633806' },
+  DC7: { bg:'rgba(212,83,126,0.10)',  line:'#D4537E', band:'#fdf0f5', bandTxt:'#72243E' },
+};
+
+const today = new Date(); today.setHours(0,0,0,0);
+function dayDate(n) { const d=new Date(today); d.setDate(d.getDate()+n); return d; }
+function fmt(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
+
+document.getElementById('dateRange').textContent = `${fmt(today)} – ${fmt(dayDate(TOTAL_DAYS))}`;
+
+let projects = [
+  { id:1, name:'Onboarding Hub: Physical IDX Agreement Trigger', team:'LaunchX', size:'M', start:0, dur:10, status:'Planned', label:'2025 DC8' },
+  { id:2, name:'Default Service Area for existing customers (Migration of data)', team:'LaunchX', size:'M', start:0, dur:10, status:'Planned', label:'2025 DC8' },
+  { id:3, name:'Service Area - Part 2 of 2 (Onboarding Hub & Settings)', team:'LaunchX', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC1' },
+  { id:4, name:'Service Areas + Client Price Point: Post-MVP Enhancements', team:'LaunchX', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC2' },
+  { id:5, name:'[Community] Account Hoteling - Part 1 of 3', team:'LaunchX', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC2' },
+  { id:6, name:'Improved UI for “Dashboard” page in Presence during Onboarding', team:'LaunchX', size:'XL', start:0, dur:30, status:'Planned', label:'2026 DC3' },
+  { id:7, name:'[Community] Account Hoteling - Part 2 of 2', team:'LaunchX', size:'XL', start:0, dur:30, status:'Planned', label:'2026 DC3' },
+  { id:8, name:'[Stretch] Automated Subdomains — Part 1 of 2', team:'LaunchX', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:9, name:'Automated Subdomains — Part 2 of 2', team:'LaunchX', size:'M', start:33, dur:10, status:'Planned', label:'2026 DC4' },
+  { id:10, name:'[Community] Account Hoteling — Part 2 of 3', team:'LaunchX', size:'L', start:33, dur:20, status:'Planned', label:'2026 DC4' },
+  { id:11, name:'[Tentative] Service Areas + Client Price Point: Post-MVP | Cross-Feature Adoption (AI Blogs & Lead Generation Target Location)', team:'LaunchX', size:'M', start:33, dur:10, status:'Planned', label:'2026 DC4' },
+  { id:12, name:'Neighborhood CMS “Demographics & Map” Revamp', team:'LaunchX', size:'M', start:33, dur:10, status:'Planned', label:'2026 DC4' },
+  { id:13, name:'[Community] ARM: Automatic Community user accounts for new CMS agents', team:'LaunchX', size:'XL', start:33, dur:30, status:'Planned', label:'2026 DC4' },
+  { id:14, name:'Onboarding Hub: “Content migration guidelines” field', team:'LaunchX', size:'M', start:75, dur:10, status:'Planned', label:'2026 DC5' },
+  { id:15, name:'[Community] Automatic Community user accounts for new CMS agents - Part 2 of 2', team:'LaunchX', size:'L', start:75, dur:20, status:'Planned', label:'2026 DC5' },
+  { id:16, name:'[Community] Bulk invites: User accounts created for all existing agents in CMS', team:'LaunchX', size:'L', start:75, dur:20, status:'Planned', label:'2026 DC5' },
+  { id:17, name:'[Tentative] Agent Service Area & budget preferences', team:'LaunchX', size:'L', start:210, dur:20, status:'Backlog', label:'Backlog' },
+  { id:18, name:'Streamlined Settings', team:'LaunchX', size:'M', start:210, dur:10, status:'Backlog', label:'Backlog' },
+  { id:19, name:'Automate Domain setup', team:'LaunchX', size:'M', start:210, dur:10, status:'Backlog', label:'Backlog' },
+  { id:20, name:'Better onboarding emails', team:'LaunchX', size:'XL', start:210, dur:30, status:'Backlog', label:'Backlog' },
+  { id:21, name:'Sunset IAO', team:'LaunchX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:22, name:'Remove Duplicate Listings in CMS', team:'MMC', size:'XL', start:0, dur:30, status:'Planned', label:'2026 DC1' },
+  { id:23, name:'MLS Board on admin view', team:'MMC', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC2' },
+  { id:24, name:'MLS Auth on admin view', team:'MMC', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC2' },
+  { id:25, name:'Authorization Discrepancy Cleanup', team:'MMC', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:26, name:'Part 2 of MLS Auth on admin view', team:'MMC', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC3' },
+  { id:27, name:'CMS Agent Profile UI', team:'MMC', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC3' },
+  { id:28, name:'Configurable “Exclusive Listings” Label', team:'MMC', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:29, name:'Add tenant comp to CMS & property elements', team:'MMC', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:30, name:'ARM for Custom Media Layout (pka Grouped Floorplans) in Dev CMS', team:'MMC', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:31, name:'Spike & Designs: Daily/Weekly Digest for Listing Feed Syndication', team:'MMC', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC3' },
+  { id:32, name:'Daily/Weekly Digest for Listing Feed Syndication', team:'MMC', size:'M', start:33, dur:10, status:'Planned', label:'2026 DC4' },
+  { id:33, name:'Custom Media Layout (pka Grouped Floorplans) in Dev CMS', team:'MMC', size:'L', start:33, dur:20, status:'Planned', label:'2026 DC4' },
+  { id:34, name:'Improve Dev<>Prop Assignment', team:'MMC', size:'M', start:75, dur:10, status:'Planned', label:'2026 DC5' },
+  { id:35, name:'Testimonial Tree Integration', team:'MMC', size:'XL', start:75, dur:30, status:'Planned', label:'2026 DC5' },
+  { id:36, name:'[Spike] Build Mid-Market Client Insights Dashboard', team:'MMC', size:'M', start:75, dur:10, status:'Planned', label:'2026 DC5' },
+  { id:37, name:'Development Data Import & Display (v2: Miami)', team:'MMC', size:'M', start:117, dur:10, status:'Planned', label:'2026 DC6' },
+  { id:38, name:'Sunset Feature Flags', team:'MMC', size:'M', start:117, dur:10, status:'Planned', label:'2026 DC6' },
+  { id:39, name:'Nested Neighborhoods', team:'MMC', size:'M', start:159, dur:10, status:'Planned', label:'2026 DC7' },
+  { id:40, name:'RSS Feed for Blog Sharing', team:'MMC', size:'M', start:159, dur:10, status:'Planned', label:'2026 DC7' },
+  { id:41, name:'[Tentative] Blogs on Agent & Team Subdomains', team:'MMC', size:'M', start:210, dur:10, status:'Backlog', label:'Backlog' },
+  { id:42, name:'Intranet', team:'MMC', size:'M', start:210, dur:10, status:'Backlog', label:'Backlog' },
+  { id:43, name:'User Role Updates (User “Units”)', team:'MMC', size:'M', start:210, dur:10, status:'Backlog', label:'Backlog' },
+  { id:44, name:'[ARM] Comply with TRREB VOW Requirements', team:'MMC', size:'L', start:210, dur:20, status:'On Hold', label:'On Hold' },
+  { id:45, name:'Comply with TRREB VOW Requirements', team:'MMC', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:46, name:'Customize Saved Search Emails from Agents instead of Account Lead', team:'MMC', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:47, name:'Part 2 of Add “Internal-Facing” UI to Presence Pain Points', team:'WebX', size:'M', start:0, dur:10, status:'Planned', label:'2026 DC1' },
+  { id:48, name:'Custom Media Layout (pka Grouped Floorplans) in Dev CMS', team:'WebX', size:'L', start:33, dur:20, status:'Planned', label:'2026 DC4' },
+  { id:49, name:'PDF Uploads for Buttons', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:50, name:'International area code drop down in phone number field', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:51, name:'Bulk Delete Pages in Website Builder', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:52, name:'Centralized Social Media Profile URLs', team:'WebX', size:'L', start:210, dur:20, status:'On Hold', label:'On Hold' },
+  { id:53, name:'Additional Agent CMS fields', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:54, name:'Additional Map Element Configurations', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:55, name:'“Exclude” Filters for Website Elements', team:'WebX', size:'M', start:210, dur:10, status:'On Hold', label:'On Hold' },
+  { id:56, name:'Typography Configurations', team:'WebX', size:'XL', start:210, dur:30, status:'On Hold', label:'On Hold' },
+  { id:57, name:'Allow Users to Change their email (with improved security)', team:'Platform', size:'L', start:0, dur:20, status:'Planned', label:'2026 DC3' },
+  { id:58, name:'Next Gen Audit Log Phase 8 of 9: Dashboard Content & Settings', team:'Platform', size:'L', start:33, dur:20, status:'Planned', label:'2026 DC4' },
+  { id:59, name:'Next Gen Audit Log Phase 9 of 9: UI', team:'Platform', size:'M', start:75, dur:10, status:'Planned', label:'2026 DC5' },
+];
+let nextId = 60;
+let activeFilters = new Set(TEAMS);
+let drag = null;
+
+// ── Pills ──────────────────────────────────────────────────────
+function buildPills() {
+  const c = document.getElementById('filterPills');
+  c.innerHTML = '';
+  TEAMS.forEach(t => {
+    const el = document.createElement('span');
+    el.className = `pill pill-${TEAM_KEY[t]} ${activeFilters.has(t)?'active':'inactive'}`;
+    el.dataset.team = t;
+    el.textContent = t;
+    el.onclick = () => toggleFilter(t);
+    c.appendChild(el);
+  });
+}
+function toggleFilter(team) {
+  if (activeFilters.has(team)) { if (activeFilters.size===1) return; activeFilters.delete(team); }
+  else activeFilters.add(team);
+  buildPills(); render();
+}
+
+// ── Timeline header ─────────────────────────────────────────────
+function buildHeader() {
+  const dcHdr = document.getElementById('dcHdr');
+  dcHdr.style.width = CANVAS_W + 'px';
+  dcHdr.innerHTML = '';
+  [
+    { dc:'DC3', s:0,          e:DC4_START },
+    { dc:'DC4', s:DC4_START,  e:DC5_START },
+    { dc:'DC5', s:DC5_START,  e:DC6_START },
+    { dc:'DC6', s:DC6_START,  e:DC7_START },
+    { dc:'DC7', s:DC7_START,  e:UNSCHEDULED_START },
+  ].forEach(seg => {
+    const w = (Math.min(seg.e, UNSCHEDULED_START) - seg.s) * DAY_W;
+    if (w <= 0) return;
+    const cfg = DC_CFG[seg.dc];
+    const d = document.createElement('div');
+    d.className = `dc-band ${seg.dc.toLowerCase()}`;
+    d.style.width = w + 'px';
+    d.textContent = seg.dc;
+    dcHdr.appendChild(d);
+  });
+
+  // Unscheduled zone header
+  const hasUnscheduled = projects.some(p => p.start >= UNSCHEDULED_START);
+  if (hasUnscheduled) {
+    // Gap marker
+    const gap = document.createElement('div');
+    gap.style.cssText = `width:${4*DAY_W}px;flex-shrink:0;background:#f5f4f0;border-left:2px dashed #ccc;display:flex;align-items:center;justify-content:center;font-size:10px;color:#bbb;letter-spacing:.04em;`;
+    gap.textContent = '···';
+    dcHdr.appendChild(gap);
+    // Unscheduled band
+    const ub = document.createElement('div');
+    ub.style.cssText = `width:${UNSCHEDULED_WIDTH*DAY_W}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:#f1efe8;color:#888;border-left:2px dashed #ccc;letter-spacing:.05em;`;
+    ub.textContent = 'Unscheduled';
+    dcHdr.appendChild(ub);
+  }
+
+  const wkHdr = document.getElementById('wkHdr');
+  wkHdr.style.width = CANVAS_W + 'px';
+  wkHdr.innerHTML = '';
+  const scheduledEnd2 = UNSCHEDULED_START;
+  for (let i = 0; i < scheduledEnd2; i += 7) {
+    const w = Math.min(7, scheduledEnd2 - i) * DAY_W;
+    const isBoundary = (i === DC4_START || i === DC5_START || i === DC6_START || i === DC7_START);
+    const d = document.createElement('div');
+    d.className = 'wk-label' + (isBoundary ? ' dc-start' : '');
+    d.style.width = w + 'px';
+    d.textContent = fmt(dayDate(i));
+    wkHdr.appendChild(d);
+  }
+  // Gap + unscheduled week labels
+  const hasUnscheduled2 = projects.some(p => p.start >= UNSCHEDULED_START);
+  if (hasUnscheduled2) {
+    const gapWk = document.createElement('div');
+    gapWk.style.cssText = `width:${4*DAY_W}px;flex-shrink:0;background:#f5f4f0;border-left:2px dashed #ccc;`;
+    wkHdr.appendChild(gapWk);
+    const uWk = document.createElement('div');
+    uWk.style.cssText = `width:${UNSCHEDULED_WIDTH*DAY_W}px;flex-shrink:0;font-size:10px;color:#bbb;display:flex;align-items:center;padding-left:5px;border-left:2px dashed #ccc;`;
+    uWk.textContent = 'No target DC';
+    wkHdr.appendChild(uWk);
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function render() {
+  recomputeCanvas();
+  document.getElementById('dateRange').textContent = `${fmt(today)} – ${fmt(dayDate(TOTAL_DAYS))}`;
+  buildHeader();
+
+  const frozen = document.getElementById('frozenPanel');
+  const scroll = document.getElementById('scrollPanel');
+
+  // Clear project rows from both panels (keep first 2 header divs in frozen, 2 in scroll)
+  while (frozen.children.length > 2) frozen.removeChild(frozen.lastChild);
+  // Remove bar rows (everything after dcHdr + wkHdr)
+  const scrollKids = Array.from(scroll.children);
+  scrollKids.slice(2).forEach(el => el.remove());
+
+  const visible = projects.filter(p => activeFilters.has(p.team));
+
+  if (!visible.length) {
+    const ef = document.createElement('div');
+    ef.className = 'empty-state';
+    ef.textContent = 'No projects. Adjust filters or add one.';
+    frozen.appendChild(ef);
+    return;
+  }
+
+  visible.forEach(p => {
+    // ── Frozen row ────────────────────────────────────────────
+    const fr = document.createElement('div');
+    fr.className = 'frozen-row';
+
+    const fn = document.createElement('div');
+    fn.className = 'f-name';
+    fn.innerHTML = `
+      <span class="project-name" onclick="openModal(${p.id})">${p.name}</span>
+      <div class="meta-row">
+        <span class="team-tag pill-${TEAM_KEY[p.team]}">${p.team}</span>
+        ${p.label?`<span class="dc-tag">${p.label}</span>`:''}
+      </div>`;
+
+    const fs = document.createElement('div');
+    fs.className = 'f-size';
+    fs.innerHTML = `<span class="size-badge size-${p.size}" onclick="cycleSize(${p.id})" title="Click to cycle">${p.size}</span>`;
+
+    fr.appendChild(fn);
+    fr.appendChild(fs);
+    frozen.appendChild(fr);
+
+    // ── Bar row ────────────────────────────────────────────────
+    const br = document.createElement('div');
+    br.className = 'bar-row';
+
+    const canvas = document.createElement('div');
+    canvas.className = 'bar-canvas';
+    const hasUnscheduledProj = projects.some(q => q.start >= UNSCHEDULED_START);
+    const canvasW = hasUnscheduledProj
+      ? (UNSCHEDULED_START + 4 + UNSCHEDULED_WIDTH) * DAY_W
+      : CANVAS_W;
+    canvas.style.width = canvasW + 'px';
+
+    // DC shading
+    [
+      { dc:'DC3', s:0,          e:DC4_START },
+      { dc:'DC4', s:DC4_START,  e:DC5_START },
+      { dc:'DC5', s:DC5_START,  e:DC6_START },
+      { dc:'DC6', s:DC6_START,  e:DC7_START },
+      { dc:'DC7', s:DC7_START,  e:UNSCHEDULED_START },
+    ].forEach(seg => {
+      const w = (Math.min(seg.e, TOTAL_DAYS) - seg.s) * DAY_W;
+      if (w <= 0) return;
+      const sh = document.createElement('div');
+      sh.className = 'dc-sh';
+      sh.style.left = (seg.s * DAY_W) + 'px';
+      sh.style.width = w + 'px';
+      sh.style.background = DC_CFG[seg.dc].bg;
+      canvas.appendChild(sh);
+    });
+
+    // DC boundary lines
+    [DC4_START, DC5_START, DC6_START, DC7_START].forEach((d, i) => {
+      if (d >= TOTAL_DAYS) return;
+      const ln = document.createElement('div');
+      ln.className = 'dc-ln';
+      ln.style.left = (d * DAY_W) + 'px';
+      ln.style.background = [DC_CFG.DC4.line, DC_CFG.DC5.line, DC_CFG.DC6.line, DC_CFG.DC7.line][i] || DC_CFG.DC7.line;
+      canvas.appendChild(ln);
+    });
+
+    // Unscheduled zone background
+    if (p.start >= UNSCHEDULED_START) {
+      const ush = document.createElement('div');
+      ush.style.cssText = `position:absolute;top:0;bottom:0;left:${UNSCHEDULED_START*DAY_W}px;width:${UNSCHEDULED_WIDTH*DAY_W}px;background:rgba(200,198,192,0.15);pointer-events:none;z-index:0;`;
+      canvas.appendChild(ush);
+      // dashed left border for unscheduled zone
+      const uln = document.createElement('div');
+      uln.style.cssText = `position:absolute;top:0;bottom:0;left:${UNSCHEDULED_START*DAY_W}px;width:2px;background:repeating-linear-gradient(to bottom,#ccc 0px,#ccc 4px,transparent 4px,transparent 8px);pointer-events:none;z-index:3;`;
+      canvas.appendChild(uln);
+    }
+
+    // Today line
+    const tl = document.createElement('div');
+    tl.className = 'today-ln';
+    canvas.appendChild(tl);
+
+    // Bar
+    const bar = document.createElement('div');
+    const isUnscheduled = p.start >= UNSCHEDULED_START;
+    bar.className = `bar bar-${TEAM_KEY[p.team]}${isUnscheduled ? ' bar-unscheduled' : ''}`;
+    bar.style.left  = (p.start * DAY_W) + 'px';
+    bar.style.width = (p.dur   * DAY_W) + 'px';
+    bar.title = `${p.name} · ${fmt(dayDate(p.start))} – ${fmt(dayDate(p.start+p.dur))} · ${p.dur} days`;
+
+    const lbl = document.createElement('span');
+    lbl.textContent = p.name;
+    lbl.style.pointerEvents = 'none';
+    bar.appendChild(lbl);
+
+    const rh = document.createElement('div');
+    rh.className = 'rh';
+    bar.appendChild(rh);
+
+    rh.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); startResize(e, p.id); });
+    bar.addEventListener('mousedown', e => { if (e.target===rh) return; e.preventDefault(); startDrag(e, p.id); });
+
+    canvas.appendChild(bar);
+    br.appendChild(canvas);
+    scroll.appendChild(br);
+  });
+}
+
+// ── Drag ─────────────────────────────────────────────────────
+function startDrag(e, id) {
+  const p = projects.find(x=>x.id===id);
+  drag = { type:'move', id, startX:e.clientX, origStart:p.start };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+function startResize(e, id) {
+  const p = projects.find(x=>x.id===id);
+  drag = { type:'resize', id, startX:e.clientX, origDur:p.dur };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+function onDrag(e) {
+  if (!drag) return;
+  const dx = Math.round((e.clientX - drag.startX) / DAY_W);
+  const p = projects.find(x=>x.id===drag.id);
+  if (drag.type==='move') p.start = Math.max(0, Math.min(TOTAL_DAYS-p.dur, drag.origStart+dx));
+  else                    p.dur   = Math.max(1, Math.min(TOTAL_DAYS-p.start, drag.origDur+dx));
+  render();
+}
+function endDrag() {
+  drag = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+}
+
+function cycleSize(id) {
+  const p = projects.find(x=>x.id===id);
+  p.size = SIZES[(SIZES.indexOf(p.size)+1) % SIZES.length];
+  p.dur  = SIZE_DAYS[p.size];
+  render();
+}
+
+// ── Modal ────────────────────────────────────────────────────
+function openModal(id) {
+  const p = id ? projects.find(x=>x.id===id) : null;
+  document.getElementById('modalContainer').innerHTML = `
+    <div class="modal-bg" id="modalBg" onclick="closeBg(event)">
+      <div class="modal">
+        <h3>${p?'Edit project':'New project'}</h3>
+        <div class="form-row"><label>Project name</label>
+          <input type="text" id="m-name" value="${p?p.name.replace(/"/g,'&quot;'):''}" placeholder="Project name" /></div>
+        <div class="form-row"><label>Team</label>
+          <select id="m-team">${TEAMS.map(t=>`<option value="${t}" ${p&&p.team===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="form-row"><label>Size</label>
+          <select id="m-size" onchange="syncDur()">${SIZES.map(s=>`<option value="${s}" ${p&&p.size===s?'selected':''}>${s} (~${SIZE_DAYS[s]}d)</option>`).join('')}</select></div>
+        <div class="form-row"><label>Duration (days)</label>
+          <input type="number" id="m-dur" min="1" max="${TOTAL_DAYS}" value="${p?p.dur:5}" /></div>
+        <div class="form-row"><label>Start (days from today)</label>
+          <input type="number" id="m-start" min="0" max="${TOTAL_DAYS-1}" value="${p?p.start:0}" /></div>
+        <div class="form-row"><label>Status</label>
+          <input type="text" id="m-status" value="${p?(p.status||''):''}" placeholder="Planned, In Design…" /></div>
+        <div class="form-row"><label>DC Label</label>
+          <input type="text" id="m-label" value="${p?(p.label||''):''}" placeholder="2026 DC3" /></div>
+        <div class="modal-actions">
+          ${p?`<span class="del-link" onclick="deleteProject(${p.id})">Delete</span>`:''}
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveModal(${id||'null'})">${p?'Save changes':'Add project'}</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>document.getElementById('m-name').focus(), 10);
+}
+function syncDur() { document.getElementById('m-dur').value = SIZE_DAYS[document.getElementById('m-size').value]; }
+function closeBg(e) { if (e.target.id==='modalBg') closeModal(); }
+function closeModal() { document.getElementById('modalContainer').innerHTML=''; }
+function saveModal(id) {
+  const name = document.getElementById('m-name').value.trim();
+  if (!name) { alert('Project name required.'); return; }
+  const team=document.getElementById('m-team').value, size=document.getElementById('m-size').value;
+  const dur=Math.max(1,parseInt(document.getElementById('m-dur').value)||SIZE_DAYS[size]);
+  const start=Math.max(0,parseInt(document.getElementById('m-start').value)||0);
+  const status=document.getElementById('m-status').value.trim();
+  const label=document.getElementById('m-label').value.trim();
+  if (id) Object.assign(projects.find(x=>x.id===id),{name,team,size,dur,start,status,label});
+  else    projects.push({id:nextId++,name,team,size,dur,start,status,label});
+  closeModal(); render();
+}
+function deleteProject(id) {
+  if (!confirm('Delete this project?')) return;
+  projects=projects.filter(x=>x.id!==id);
+  closeModal(); render();
+}
+
+// ── Export ───────────────────────────────────────────────────
+function exportCSV() {
+  const rows=[['Name','Team','Size','Duration','Start offset','Start date','End date','Status','DC Label']];
+  projects.forEach(p=>rows.push([p.name,p.team,p.size,p.dur,p.start,fmt(dayDate(p.start)),fmt(dayDate(p.start+p.dur)),p.status||'',p.label||'']));
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='flagship-roadmap.csv'; a.click();
+}
+
+buildPills();
+render();
+</script>
+</body>
+</html>

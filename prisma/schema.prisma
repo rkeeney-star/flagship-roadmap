@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id     Int    @id @default(autoincrement())
+  name   String
+  team   String
+  size   String
+  start  Int
+  dur    Int
+  status String @default("")
+  label  String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

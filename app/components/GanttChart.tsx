@@ -7,7 +7,6 @@ import {
   DC4_START, DC5_START, DC6_START, DC7_START,
   UNSCHEDULED_START, UNSCHEDULED_WIDTH,
   DC_CFG, DC_SEGMENTS, recomputeTotalDays,
-  INITIAL_PROJECTS,
 } from '@/app/lib/data'
 import ProjectModal from './ProjectModal'
 
@@ -25,11 +24,17 @@ function fmt(d: Date): string {
 }
 
 export default function GanttChart() {
-  const [projects, setProjects]         = useState<Project[]>(INITIAL_PROJECTS)
+  const [projects, setProjects]           = useState<Project[]>([])
+  const [loading, setLoading]             = useState(true)
   const [activeFilters, setActiveFilters] = useState(new Set(TEAMS))
   const [modalProjectId, setModalProjectId] = useState<number | null | undefined>(undefined)
-  const [nextId, setNextId]             = useState(60)
   const dragRef = useRef<DragState | null>(null)
+
+  useEffect(() => {
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then(data => { setProjects(data); setLoading(false) })
+  }, [])
 
   const totalDays  = recomputeTotalDays(projects)
   const canvasW    = totalDays * DAY_W
@@ -52,6 +57,14 @@ export default function GanttChart() {
   }, [totalDays])
 
   const onMouseUp = useCallback(() => {
+    const d = dragRef.current
+    if (d) {
+      setProjects(prev => {
+        const p = prev.find(x => x.id === d.id)
+        if (p) fetch(`/api/projects/${p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start: p.start, dur: p.dur }) })
+        return prev
+      })
+    }
     dragRef.current = null
     window.removeEventListener('mousemove', onMouseMove)
     window.removeEventListener('mouseup', onMouseUp)
@@ -90,25 +103,34 @@ export default function GanttChart() {
 
   // ── Size cycle ─────────────────────────────────────────────────
   function cycleSize(id: number) {
-    setProjects(prev => prev.map(p => {
-      if (p.id !== id) return p
-      const size = SIZES[(SIZES.indexOf(p.size) + 1) % SIZES.length]
-      return { ...p, size, dur: SIZE_DAYS[size] }
-    }))
+    setProjects(prev => {
+      const next = prev.map(p => {
+        if (p.id !== id) return p
+        const size = SIZES[(SIZES.indexOf(p.size) + 1) % SIZES.length]
+        return { ...p, size, dur: SIZE_DAYS[size] }
+      })
+      const updated = next.find(p => p.id === id)!
+      fetch(`/api/projects/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ size: updated.size, dur: updated.dur }) })
+      return next
+    })
   }
 
   // ── Modal ──────────────────────────────────────────────────────
-  function handleSave(data: Omit<Project, 'id'>) {
+  async function handleSave(data: Omit<Project, 'id'>) {
     if (modalProjectId != null) {
-      setProjects(prev => prev.map(p => p.id === modalProjectId ? { ...p, ...data } : p))
+      const res = await fetch(`/api/projects/${modalProjectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const updated = await res.json()
+      setProjects(prev => prev.map(p => p.id === modalProjectId ? updated : p))
     } else {
-      setProjects(prev => [...prev, { id: nextId, ...data }])
-      setNextId(n => n + 1)
+      const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const created = await res.json()
+      setProjects(prev => [...prev, created])
     }
     setModalProjectId(undefined)
   }
 
-  function handleDelete() {
+  async function handleDelete() {
+    await fetch(`/api/projects/${modalProjectId}`, { method: 'DELETE' })
     setProjects(prev => prev.filter(p => p.id !== modalProjectId))
     setModalProjectId(undefined)
   }
@@ -231,6 +253,10 @@ export default function GanttChart() {
   const modalProject = modalProjectId != null
     ? projects.find(p => p.id === modalProjectId) ?? null
     : null
+
+  if (loading) {
+    return <div style={{ padding: 24, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#999', background: '#f5f4f0', minHeight: '100vh' }}>Loading…</div>
+  }
 
   return (
     <div style={{ padding: 24, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: '#111', minHeight: '100vh', background: '#f5f4f0' }}>
